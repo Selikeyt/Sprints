@@ -1,1 +1,1 @@
-# Sprints № 1
+# Sprints № 1 and № 2
