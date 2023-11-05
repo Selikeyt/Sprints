@@ -19,13 +19,6 @@ class Coords(models.Model):
     height = models.IntegerField()
 
 
-class Image(models.Model):
-    id = models.AutoField(primary_key=True)
-    pereval = models.ForeignKey('PerevalAdded', on_delete=models.CASCADE)
-    data = models.ImageField(upload_to='images/')
-    title = models.CharField(max_length=255)
-
-
 class PerevalAdded(models.Model):
     id = models.AutoField(primary_key=True)
     beautyTitle = models.CharField(max_length=255)
@@ -39,7 +32,6 @@ class PerevalAdded(models.Model):
     summer_level = models.CharField(max_length=255, blank=True)
     autumn_level = models.CharField(max_length=255, blank=True)
     spring_level = models.CharField(max_length=255, blank=True)
-    images = models.ManyToManyField(Image, related_name='perevals')
     status = models.CharField(
         max_length=255,
         choices=(
@@ -54,11 +46,25 @@ class PerevalAdded(models.Model):
         db_table = 'pereval_added'
 
 
+class Images(models.Model):
+    id = models.AutoField(primary_key=True)
+    data = models.ImageField(upload_to='images/')
+    title = models.CharField(max_length=255)
+    pereval = models.ForeignKey('PerevalAdded', on_delete=models.CASCADE)
+
+
+class PerevalAreas(models.Model):
+    id = models.AutoField(primary_key=True)
+    id_parent = models.BigIntegerField()
+    title = models.TextField()
+
+    class Meta:
+        db_table = 'pereval_areas'
+
+
 class SprActivitiesTypes(models.Model):
     id = models.AutoField(primary_key=True)
     title = models.TextField()
 
     class Meta:
         db_table = 'spr_activities_types'
-
-
