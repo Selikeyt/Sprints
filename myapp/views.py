@@ -1,79 +1,45 @@
-from rest_framework.views import APIView
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import mixins, generics, status
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-from .models import CustomUser, Coords, Image, PerevalAdded
-from .serializers import PerevalAddedSerializer, CustomUserSerializer, CoordsSerializer, ImageSerializer
+from .models import PerevalAdded
+from .serializers import PerevalAddedSerializer, PerevalAddedDetailSerializer
 
-class SubmitDataView(APIView):
+
+class SubmitData(mixins.CreateModelMixin,
+                 mixins.ListModelMixin,
+                 generics.GenericAPIView):
+    queryset = PerevalAdded.objects.all()
+    serializer_class = PerevalAddedSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['user__email']
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
     def post(self, request, *args, **kwargs):
-        data = request.data
-        images_data = request.FILES.getlist('images')
+        serializer = PerevalAddedSerializer(data=request.data)
+        if serializer.is_valid():
+            obj = serializer.save()
+            return Response({'status': status.HTTP_201_CREATED, 'message': 'Запись успешно создана', 'id': obj.id})
+        return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': serializer.errors})
 
-        print("Received data:", request.data)
 
-        try:
-            # Проверка наличия необходимых полей в данных
-            required_fields = ['beautyTitle', 'title', 'add_time', 'user', 'coords', 'images']
-            if not all(field in data for field in required_fields):
-                raise ValueError("Недостаточно обязательных полей в данных")
+class SubmitDetailData(mixins.RetrieveModelMixin,
+                       mixins.UpdateModelMixin,
+                       generics.GenericAPIView):
+    queryset = PerevalAdded.objects.all()
+    serializer_class = PerevalAddedDetailSerializer
 
-            # Создание и сохранение связанных объектов
-            user_serializer = CustomUserSerializer(data=data['user'])
-            coords_serializer = CoordsSerializer(data=data['coords'])
-            if not user_serializer.is_valid() or not coords_serializer.is_valid():
-                print("Invalid user data:", user_serializer.errors)
-                print("Invalid coords data:", coords_serializer.errors)
-                raise ValueError("Некорректные данные для пользователя или координат")
+    def get(self, request, *args, **kwargs):
+        return self.retrieve(request, *args, **kwargs)
 
-            user_instance = user_serializer.save()
-            coords_instance = coords_serializer.save()
-
-            # Создание и сохранение объекта PerevalAdded
-            pereval_data = {
-                'beautyTitle': data['beautyTitle'],
-                'title': data['title'],
-                'other_titles': data.get('other_titles', ''),
-                'connect': data.get('connect', ''),
-                'add_time': data['add_time'],
-                'user': user_instance.id,
-                'coords': coords_instance.id,
-                'winter_level': data.get('winter_level', ''),
-                'summer_level': data.get('summer_level', ''),
-                'autumn_level': data.get('autumn_level', ''),
-                'spring_level': data.get('spring_level', ''),
-                'status': 'new',
-            }
-            pereval_serializer = PerevalAddedSerializer(data=pereval_data)
-            if not pereval_serializer.is_valid():
-                print("Invalid PerevalAdded data:", pereval_serializer.errors)
-                raise ValueError("Некорректные данные для PerevalAdded")
-
-            pereval_instance = pereval_serializer.save()
-
-            # Создание и сохранение связанных объектов Image через PerevalImages
-            images_data = data.get('images', [])
-            for image_data in images_data:
-                image_data['pereval'] = pereval_instance.id
-                image_serializer = ImageSerializer(data=image_data)
-                if not image_serializer.is_valid():
-                    print("Invalid Image data:", image_serializer.errors)
-                    raise ValueError("Некорректные данные для изображения")
-                image_serializer.save()
-
-            response_data = {
-                "status": 200,
-                "message": "Отправлено успешно",
-                "id": pereval_instance.id
-            }
-        except ValueError as ve:
-            response_data = {
-                "status": 400,
-                "message": str(ve),
-                "id": None
-            }
-        except Exception as e:
-            response_data = {
-                "status": 500,
-                "message": "Ошибка при выполнении операции: " + str(e),
-                "id": None
-            }
-        return Response(response_data)
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = PerevalAddedDetailSerializer(instance=instance, data=request.data, partial=True)
+        if serializer.is_valid():
+            if instance.status != 'new':
+                raise ValidationError(f'Статус данных изменился на: {instance.status}. Редактирование запрещено')
+            serializer.save()
+            return Response({'state': 1, 'message': 'Данные успешно отредактированы'})
+        return Response({'state': 0, 'message': serializer.errors})
